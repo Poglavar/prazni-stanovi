@@ -4,7 +4,7 @@
 # Deploys to zagreb.lol/praznistanovi/
 
 # Configuration
-SSH_HOST="root@207.154.200.141"
+SSH_HOST="root@67.205.138.129"
 REMOTE_PATH="/var/www/zagreb.lol/praznistanovi"
 
 # Colors for output
