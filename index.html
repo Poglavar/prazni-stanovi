@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="hr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noarchive, noindex, nofollow, nosnippet, notranslate, noimageindex">
+    <meta name="googlebot" content="noarchive, noindex, nofollow, nosnippet, notranslate, noimageindex">
+    <meta name="bingbot" content="noarchive, noindex, nofollow, nosnippet, notranslate, noimageindex">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Razotkrivač praznih stanova</title>
+    <link rel="icon" type="image/jpeg" href="../images/favicon.jpg">
+    <link rel="apple-touch-icon" href="../images/favicon.jpg">
+    <link rel="stylesheet" href="praznistanovi.css">
+</head>
+
+<body>
+    <div class="soviet-header">
+        <h1 class="soviet-title">Prijavi prazne stanove</h1>
+        <p class="soviet-subtitle">Otkrij skrivene prazne stanove u našim gradovima</p>
+    </div>
+
+    <div class="main-content">
+        <div class="description">
+            <h2>Misija</h2>
+            <p>Vlada RH ima saznanja da, u ovo vrijeme sve lošije priuštivosti stanovanja, u našim gradovima postoji
+                600.000
+                praznih stanova. Skriveni su posvuda. Tim stručnjaka iz <a href="https://krpa.me">naše stranke</a> je
+                proveo mjesec dana radeći
+                na <a href="https://hr.wikipedia.org/wiki/Pavlik_Morozov">"projektu Morozov"</a>, rezultat kojeg je
+                ovaj alat, pomoću kojeg možete oplemeniti svoje večernje šetnje društveno korisnim radom.
+                Prazni stanovi se najbolje otkrivaju fotografijama snimljenim noću. Pomozite nam da ih otkrijemo što
+                više. Bez brige, sve se može odraditi potpuno anonimno. Lista stanova će biti dostavljena organima
+                vlasti na daljnje postupanje. Najbolje prijavljivače čekaju brojne nagrade, a i
+                ordenje se razmatra.</p>
+        </div>
+
+        <div class="example-image-section">
+            <h3>Primjer analize</h3>
+            <img src="prazni-stanovi-primjer1.png" alt="Primjer analize praznih stanova" class="example-image">
+            <p class="example-caption">Fotografija zgrade snimljena noću - tamni prozori sugeriraju prazne stanove</p>
+        </div>
+
+        <div class="upload-section">
+            <button type="button" class="upload-btn" id="openUploadBtn">Pošalji fotografiju</button>
+        </div>
+
+        <div class="stats-container">
+            <div class="main-stat">
+                <div class="main-stat-number" id="total-apartments">0</div>
+                <div class="main-stat-label">Ukupno stanova prijavljeno</div>
+            </div>
+
+            <div class="leaderboards">
+                <div class="leaderboard">
+                    <h3>Najbolji prijavljivači</h3>
+                    <div id="top-users"></div>
+                </div>
+
+                <div class="leaderboard">
+                    <h3>Najaktivniji gradovi</h3>
+                    <div id="top-cities"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for photo analysis -->
+    <div id="photoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Prepoznaj prazne stanove</h2>
+                <button type="button" class="close" id="closeModalBtn" aria-label="Zatvori prozor">&times;</button>
+            </div>
+
+            <div class="modal-instruction">
+                <p>Kliknite na mračne prozore kako biste označili prazne stanove</p>
+            </div>
+
+            <div class="image-container">
+                <canvas id="imageCanvas" style="display: none;"></canvas>
+            </div>
+
+            <div class="controls-section">
+                <select id="citySelect" class="city-select">
+                    <option value="">-- Odaberite grad --</option>
+                    <option value="Zagreb">Zagreb</option>
+                    <option value="Split">Split</option>
+                    <option value="Rijeka">Rijeka</option>
+                    <option value="Osijek">Osijek</option>
+                    <option value="Zadar">Zadar</option>
+                    <option value="Slavonski Brod">Slavonski Brod</option>
+                    <option value="Karlovac">Karlovac</option>
+                    <option value="Sisak">Sisak</option>
+                    <option value="Dubrovnik">Dubrovnik</option>
+                    <option value="Pula">Pula</option>
+                </select>
+                <button type="button" id="submitBtn" class="submit-btn" disabled>Pošalji rezultate</button>
+            </div>
+
+            <div id="resultsSummary" class="results-summary" style="display: none;"></div>
+
+            <div id="uploadingOverlay" class="uploading-overlay" aria-hidden="true">
+                <div class="uploading-panel" role="status" aria-live="polite">
+                    <div class="upload-spinner"></div>
+                    <p>Uploading...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+
+    <div id="siteDialog" class="site-dialog" aria-hidden="true">
+        <div class="site-dialog-panel" role="alertdialog" aria-modal="true" aria-labelledby="siteDialogTitle"
+            aria-describedby="siteDialogMessage">
+            <h2 id="siteDialogTitle" class="site-dialog-title"></h2>
+            <p id="siteDialogMessage" class="site-dialog-message"></p>
+            <button type="button" id="siteDialogButton" class="site-dialog-button">U redu</button>
+        </div>
+    </div>
+
+    <script>
+        let statsData = null;
+        let currentImage = null;
+        let emptyWindows = new Set();
+        let isUploading = false;
+        let activeDialogResolver = null;
+
+        const WINDOW_SAMPLE_RADIUS = 10;
+        const MARKER_TOGGLE_DISTANCE = 14;
+        const UPLOAD_DELAY_MS = 5000;
+        const UPLOAD_COUNT_STORAGE_KEY = 'praznistanovi-upload-count';
+        const FIRST_DUPLICATE_NOTICE_STORAGE_KEY = 'praznistanovi-first-duplicate-notice-shown';
+
+        // Load stats data
+        async function loadStats() {
+            try {
+                const response = await fetch('praznistanovi.json');
+                statsData = await response.json();
+                updateStatsDisplay();
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        function updateStatsDisplay() {
+            if (!statsData) return;
+
+            document.getElementById('total-apartments').textContent = statsData.total_empty_apartments_reported;
+
+            // Update top users
+            const topUsersContainer = document.getElementById('top-users');
+            topUsersContainer.innerHTML = '';
+            statsData.top_users.forEach((user, index) => {
+                const item = document.createElement('div');
+                item.className = 'leaderboard-item';
+                item.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="rank">${index + 1}</div>
+                        <span>${user.name}</span>
+                    </div>
+                    <span>${user.points} bodova</span>
+                `;
+                topUsersContainer.appendChild(item);
+            });
+
+            // Update top cities
+            const topCitiesContainer = document.getElementById('top-cities');
+            topCitiesContainer.innerHTML = '';
+            statsData.top_cities.forEach((city, index) => {
+                const item = document.createElement('div');
+                item.className = 'leaderboard-item';
+                item.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="rank">${index + 1}</div>
+                        <span>${city.city}</span>
+                    </div>
+                    <span>${city.empty_apartments} stanova</span>
+                `;
+                topCitiesContainer.appendChild(item);
+            });
+        }
+
+        function openModal() {
+            if (isUploading) return;
+            document.getElementById('fileInput').click();
+        }
+
+        function closeModal(forceClose = false) {
+            if (isUploading && !forceClose) return;
+            document.getElementById('photoModal').style.display = 'none';
+            resetModal();
+        }
+
+        function resetModal() {
+            const canvas = document.getElementById('imageCanvas');
+            const imageContainer = document.querySelector('.image-container');
+            const resultsSummary = document.getElementById('resultsSummary');
+
+            canvas.style.display = 'none';
+            canvas.removeEventListener('click', handleCanvasClick);
+            document.getElementById('citySelect').value = '';
+            document.getElementById('submitBtn').disabled = true;
+            resultsSummary.style.display = 'none';
+            resultsSummary.innerHTML = '';
+            imageContainer.querySelectorAll('.window-marker').forEach((marker) => marker.remove());
+            emptyWindows.clear();
+            currentImage = null;
+            document.getElementById('fileInput').value = '';
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && !isUploading) {
+                resetModal();
+
+                // Open the modal first
+                document.getElementById('photoModal').style.display = 'block';
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const img = new Image();
+                    img.onload = function () {
+                        currentImage = img;
+                        analyzeImage();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function analyzeImage() {
+            if (!currentImage) return;
+
+            const canvas = document.getElementById('imageCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Get the modal content width for full-width display
+            const modalContent = document.querySelector('.modal-content');
+            const containerWidth = modalContent.clientWidth - 60; // Account for padding and borders
+
+            const aspectRatio = currentImage.naturalWidth / currentImage.naturalHeight;
+
+            // Calculate display dimensions - always fit width, let height be natural
+            const displayWidth = containerWidth;
+            const displayHeight = containerWidth / aspectRatio;
+
+            // Set canvas internal dimensions to match display size for better quality
+            canvas.width = displayWidth;
+            canvas.height = displayHeight;
+
+            // Set canvas display size (for responsive display)
+            canvas.style.width = displayWidth + 'px';
+            canvas.style.height = displayHeight + 'px';
+            canvas.style.display = 'block';
+            canvas.style.margin = '0 auto'; // Center the canvas
+
+            // Draw image scaled to fit the display size
+            ctx.drawImage(currentImage, 0, 0, displayWidth, displayHeight);
+
+            // Add click listener for window detection
+            canvas.removeEventListener('click', handleCanvasClick);
+            canvas.addEventListener('click', handleCanvasClick);
+        }
+
+        function handleCanvasClick(event) {
+            const canvas = document.getElementById('imageCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+
+            // Convert display coordinates to canvas internal coordinates
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = clickX * scaleX;
+            const y = clickY * scaleY;
+
+            // Check if this area looks like a window (dark surrounded by light or vice versa)
+            const isWindow = detectWindow(x, y, canvas);
+
+            if (isWindow) {
+                const existingMarkerId = findNearbyMarkerId(x, y);
+
+                if (existingMarkerId) {
+                    emptyWindows.delete(existingMarkerId);
+                    removeMarker(existingMarkerId);
+                } else {
+                    const markerId = createMarkerId(x, y);
+                    emptyWindows.add(markerId);
+                    addMarker(clickX, clickY, markerId, canvas);
+                }
+            }
+        }
+
+        function createMarkerId(x, y) {
+            return `${Math.round(x)}-${Math.round(y)}`;
+        }
+
+        function findNearbyMarkerId(x, y) {
+            for (const markerId of emptyWindows) {
+                const [markerX, markerY] = markerId.split('-').map(Number);
+                const distance = Math.hypot(markerX - x, markerY - y);
+
+                if (distance <= MARKER_TOGGLE_DISTANCE) {
+                    return markerId;
+                }
+            }
+
+            return null;
+        }
+
+        function detectWindow(x, y, canvas) {
+            const ctx = canvas.getContext('2d');
+            const centerBrightness = getAverageBrightness(ctx, x, y, WINDOW_SAMPLE_RADIUS);
+            const ringBrightness = getRingBrightness(ctx, x, y, WINDOW_SAMPLE_RADIUS);
+            const brightnessDelta = Math.abs(centerBrightness - ringBrightness);
+
+            return brightnessDelta > 28;
+        }
+
+        function getAverageBrightness(ctx, centerX, centerY, radius) {
+            const sample = getSampleBounds(ctx.canvas, centerX, centerY, radius);
+            const imageData = ctx.getImageData(sample.left, sample.top, sample.width, sample.height);
+            const data = imageData.data;
+
+            let totalBrightness = 0;
+            let pixelCount = 0;
+
+            for (let i = 0; i < data.length; i += 4) {
+                totalBrightness += (data[i] + data[i + 1] + data[i + 2]) / 3;
+                pixelCount++;
+            }
+
+            return pixelCount === 0 ? 0 : totalBrightness / pixelCount;
+        }
+
+        function getRingBrightness(ctx, centerX, centerY, radius) {
+            const outerSample = getSampleBounds(ctx.canvas, centerX, centerY, radius * 2);
+            const innerSample = getSampleBounds(ctx.canvas, centerX, centerY, radius);
+            const outerImageData = ctx.getImageData(outerSample.left, outerSample.top, outerSample.width, outerSample.height);
+            const data = outerImageData.data;
+
+            let totalBrightness = 0;
+            let pixelCount = 0;
+
+            for (let row = 0; row < outerSample.height; row++) {
+                for (let col = 0; col < outerSample.width; col++) {
+                    const currentX = outerSample.left + col;
+                    const currentY = outerSample.top + row;
+                    const isInsideInnerSample = currentX >= innerSample.left
+                        && currentX < innerSample.left + innerSample.width
+                        && currentY >= innerSample.top
+                        && currentY < innerSample.top + innerSample.height;
+
+                    if (isInsideInnerSample) {
+                        continue;
+                    }
+
+                    const pixelIndex = (row * outerSample.width + col) * 4;
+                    totalBrightness += (data[pixelIndex] + data[pixelIndex + 1] + data[pixelIndex + 2]) / 3;
+                    pixelCount++;
+                }
+            }
+
+            return pixelCount === 0 ? 0 : totalBrightness / pixelCount;
+        }
+
+        function getSampleBounds(canvas, centerX, centerY, radius) {
+            const left = Math.max(0, Math.floor(centerX - radius));
+            const top = Math.max(0, Math.floor(centerY - radius));
+            const right = Math.min(canvas.width, Math.ceil(centerX + radius));
+            const bottom = Math.min(canvas.height, Math.ceil(centerY + radius));
+
+            return {
+                left,
+                top,
+                width: Math.max(1, right - left),
+                height: Math.max(1, bottom - top)
+            };
+        }
+
+        function addMarker(x, y, id, canvas) {
+            const marker = document.createElement('div');
+            marker.className = 'window-marker checked';
+            marker.id = id;
+
+            // Position relative to the canvas position within the image container
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = document.querySelector('.image-container').getBoundingClientRect();
+            const containerScrollTop = document.querySelector('.image-container').scrollTop;
+
+            const relativeX = canvasRect.left - containerRect.left + x - 10;
+            const relativeY = canvasRect.top - containerRect.top + y - 10 + containerScrollTop;
+
+            marker.style.left = relativeX + 'px';
+            marker.style.top = relativeY + 'px';
+            marker.innerHTML = '✓';
+            marker.onclick = function (e) {
+                e.stopPropagation();
+                emptyWindows.delete(id);
+                removeMarker(id);
+            };
+
+            document.querySelector('.image-container').appendChild(marker);
+        }
+
+        function removeMarker(id) {
+            const marker = document.getElementById(id);
+            if (marker) {
+                marker.remove();
+            }
+        }
+
+        function getSubmissionCount() {
+            const storedCount = Number.parseInt(localStorage.getItem(UPLOAD_COUNT_STORAGE_KEY) || '0', 10);
+            return Number.isFinite(storedCount) && storedCount >= 0 ? storedCount : 0;
+        }
+
+        function hasShownDuplicateNotice() {
+            return localStorage.getItem(FIRST_DUPLICATE_NOTICE_STORAGE_KEY) === 'true';
+        }
+
+        function showUploadingOverlay() {
+            const overlay = document.getElementById('uploadingOverlay');
+            overlay.style.display = 'flex';
+            overlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function hideUploadingOverlay() {
+            const overlay = document.getElementById('uploadingOverlay');
+            overlay.style.display = 'none';
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function delay(ms) {
+            return new Promise((resolve) => {
+                window.setTimeout(resolve, ms);
+            });
+        }
+
+        function showSiteDialog(message, title = 'Obavijest') {
+            const dialog = document.getElementById('siteDialog');
+            const titleElement = document.getElementById('siteDialogTitle');
+            const messageElement = document.getElementById('siteDialogMessage');
+            const button = document.getElementById('siteDialogButton');
+
+            titleElement.textContent = title;
+            messageElement.textContent = message;
+            dialog.style.display = 'flex';
+            dialog.setAttribute('aria-hidden', 'false');
+
+            return new Promise((resolve) => {
+                activeDialogResolver = resolve;
+                button.focus();
+            });
+        }
+
+        function closeSiteDialog() {
+            const dialog = document.getElementById('siteDialog');
+            dialog.style.display = 'none';
+            dialog.setAttribute('aria-hidden', 'true');
+
+            if (activeDialogResolver) {
+                const resolve = activeDialogResolver;
+                activeDialogResolver = null;
+                resolve();
+            }
+        }
+
+        async function submitResults() {
+            const city = document.getElementById('citySelect').value;
+            const emptyCount = emptyWindows.size;
+
+            if (!city || emptyCount === 0) {
+                await showSiteDialog('Molimo odaberite grad i označite barem jedan prazan stan!');
+                return;
+            }
+
+            if (isUploading) return;
+
+            isUploading = true;
+            document.getElementById('submitBtn').disabled = true;
+            showUploadingOverlay();
+
+            try {
+                await delay(UPLOAD_DELAY_MS);
+
+                const nextSubmissionNumber = getSubmissionCount() + 1;
+
+                if (!hasShownDuplicateNotice()) {
+                    localStorage.setItem(FIRST_DUPLICATE_NOTICE_STORAGE_KEY, 'true');
+                    await showSiteDialog('Hvala na prijavi! Ovaj stan je netko drugi vec prijavio. Vasa prijava ce takodjer biti zabiljezena ali ne racunaju vam se bodovi. Doduse bez brige, ima puno drugih stanova, samo nastavite.', 'Prijava zabilježena');
+                } else {
+                    await showSiteDialog(`Hvala na prijavi! Ovo je vaša ${nextSubmissionNumber}. prijava.`, 'Hvala na prijavi');
+                }
+
+                localStorage.setItem(UPLOAD_COUNT_STORAGE_KEY, String(nextSubmissionNumber));
+                closeModal(true);
+            } finally {
+                isUploading = false;
+                hideUploadingOverlay();
+            }
+        }
+
+        function handleCityChange(event) {
+            document.getElementById('submitBtn').disabled = !event.target.value;
+        }
+
+        function initializePage() {
+            document.getElementById('openUploadBtn').addEventListener('click', openModal);
+            document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+            document.getElementById('submitBtn').addEventListener('click', submitResults);
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+            document.getElementById('citySelect').addEventListener('change', handleCityChange);
+            document.getElementById('siteDialogButton').addEventListener('click', closeSiteDialog);
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            const modal = document.getElementById('photoModal');
+            const dialog = document.getElementById('siteDialog');
+            if (!isUploading && event.target === modal) {
+                closeModal();
+            }
+
+            if (event.target === dialog) {
+                closeSiteDialog();
+            }
+        }
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                const dialog = document.getElementById('siteDialog');
+                if (dialog.getAttribute('aria-hidden') === 'false') {
+                    closeSiteDialog();
+                }
+            }
+        });
+
+        // Load stats on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initializePage();
+            loadStats();
+        });
+    </script>
+</body>
+
+</html>

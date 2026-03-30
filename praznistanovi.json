@@ -1,0 +1,51 @@
+{
+    "total_empty_apartments_reported": 253,
+    "total_number_of_reporters": 23,
+    "total_number_of_cities": 10,
+    "total_number_of_buildings": 150,
+    "total_number_of_photos": 150,
+    "top_users": [
+        {
+            "name": "Ivan Martiskovic",
+            "points": 142
+        },
+        {
+            "name": "Petra Danguba",
+            "points": 98
+        },
+        {
+            "name": "Slaven Mirkonjic",
+            "points": 43
+        },
+        {
+            "name": "Davorka Lefevre",
+            "points": 40
+        },
+        {
+            "name": "Stef",
+            "points": 2
+        }
+    ],
+    "top_cities": [
+        {
+            "city": "Zagreb",
+            "empty_apartments": 31
+        },
+        {
+            "city": "Split",
+            "empty_apartments": 12
+        },
+        {
+            "city": "Rijeka",
+            "empty_apartments": 7
+        },
+        {
+            "city": "Osijek",
+            "empty_apartments": 6
+        },
+        {
+            "city": "Zadar",
+            "empty_apartments": 1
+        }
+    ]
+}
