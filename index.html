@@ -105,7 +105,7 @@
             <div id="uploadingOverlay" class="uploading-overlay" aria-hidden="true">
                 <div class="uploading-panel" role="status" aria-live="polite">
                     <div class="upload-spinner"></div>
-                    <p>Uploading...</p>
+                    <p>Učitavanje...</p>
                 </div>
             </div>
         </div>
@@ -493,7 +493,7 @@
 
                 if (!hasShownDuplicateNotice()) {
                     localStorage.setItem(FIRST_DUPLICATE_NOTICE_STORAGE_KEY, 'true');
-                    await showSiteDialog('Hvala na prijavi! Ovaj stan je netko drugi vec prijavio. Vasa prijava ce takodjer biti zabiljezena ali ne racunaju vam se bodovi. Doduse bez brige, ima puno drugih stanova, samo nastavite.', 'Prijava zabilježena');
+                    await showSiteDialog('Hvala na prijavi! Ovaj stan je netko drugi već prijavio. Vaša prijava će također biti zabilježena ali ne računaju vam se bodovi. Doduše bez brige, ima puno drugih stanova, samo nastavite.', 'Prijava zabilježena');
                 } else {
                     await showSiteDialog(`Hvala na prijavi! Ovo je vaša ${nextSubmissionNumber}. prijava.`, 'Hvala na prijavi');
                 }
