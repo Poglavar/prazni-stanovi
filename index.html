@@ -23,6 +23,10 @@
 </head>
 
 <body>
+    <div class="bg-drone" aria-hidden="true">
+        <img src="drone.svg" alt="">
+    </div>
+
     <div class="soviet-header">
         <h1 class="soviet-title">Prijavi prazne stanove</h1>
         <p class="soviet-subtitle">Otkrij skrivene prazne stanove u našim gradovima</p>
@@ -55,6 +59,10 @@
 
         <div class="upload-section">
             <button type="button" class="upload-btn" id="openUploadBtn">Pošalji fotografiju</button>
+            <button type="button" class="drone-btn" id="openDroneBtn">
+                <span class="drone-btn-badge">NOVO!</span>
+                Navedi dron-razotkrivač
+            </button>
         </div>
 
         <div class="stats-container">
@@ -73,6 +81,49 @@
                     <h3>Najaktivniji gradovi</h3>
                     <div id="top-cities"></div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for drone request -->
+    <div id="droneModal" class="modal">
+        <div class="modal-content drone-modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Dron-razotkrivač</h2>
+                <button type="button" class="close" id="closeDroneModalBtn" aria-label="Zatvori prozor">&times;</button>
+            </div>
+
+            <div id="droneModalBody">
+                <div class="drone-modal-image-wrap">
+                    <img src="drone.svg" alt="Kvadkopter dron" class="drone-modal-img">
+                </div>
+                <p class="drone-modal-text">Nemaš mobilni telefon s kamerom ili ne želiš biti viđen dok fotografiraš? Nikakav problem! Na strateškim lokacijama postavili smo dronove koji će automatski otići na lokaciju i okinuti fotku (običnu i infracrvenu), koju će AI kasnije analizirati kako bi utvrdila praznоću stanova.</p>
+                <p class="drone-modal-subtext">Unesi ispod grad i adresu. Dron će ju posjetiti najčešće unutar dan ili dva (trenutno je puno zahtjeva a malo dronova, ali radimo na dodavanju kapaciteta).</p>
+                <div class="drone-controls">
+                    <select id="droneCitySelect" class="city-select drone-city-select">
+                        <option value="">-- Odaberite grad --</option>
+                        <option value="Zagreb">Zagreb</option>
+                        <option value="Split">Split</option>
+                        <option value="Rijeka">Rijeka</option>
+                        <option value="Osijek">Osijek</option>
+                        <option value="Zadar">Zadar</option>
+                        <option value="Slavonski Brod">Slavonski Brod</option>
+                        <option value="Karlovac">Karlovac</option>
+                        <option value="Sisak">Sisak</option>
+                        <option value="Dubrovnik">Dubrovnik</option>
+                        <option value="Pula">Pula</option>
+                    </select>
+                    <input type="text" id="droneAddress" class="drone-address-input" placeholder="Unesite adresu (ulica i broj)..." disabled>
+                    <button type="button" id="droneSendBtn" class="submit-btn" disabled>Pošalji</button>
+                </div>
+            </div>
+
+            <div id="droneThankYou" class="drone-thankyou" style="display: none;">
+                <div class="drone-modal-image-wrap">
+                    <img src="drone.svg" alt="Kvadkopter dron" class="drone-modal-img">
+                </div>
+                <p class="drone-thankyou-text">Hvala! Vaš zahtjev je primljen. Dron će posjetiti navedenu lokaciju najčešće unutar dan ili dva.</p>
+                <button type="button" id="closeDroneThankYouBtn" class="submit-btn drone-close-btn">Zatvori</button>
             </div>
         </div>
     </div>
@@ -177,18 +228,27 @@
                 topUsersContainer.appendChild(item);
             });
 
-            // Update top cities
+            // Update top cities — fixed percentages of the running total
+            const cityTotal = computeTotalApartments();
+            const cityShares = [
+                { city: 'Zagreb',  pct: 0.28 },
+                { city: 'Split',   pct: 0.18 },
+                { city: 'Rijeka',  pct: 0.15 },
+                { city: 'Osijek',  pct: 0.09 },
+                { city: 'Zadar',   pct: 0.06 },
+            ];
             const topCitiesContainer = document.getElementById('top-cities');
             topCitiesContainer.innerHTML = '';
-            statsData.top_cities.forEach((city, index) => {
+            cityShares.forEach(({ city, pct }, index) => {
+                const count = Math.round(pct * cityTotal);
                 const item = document.createElement('div');
                 item.className = 'leaderboard-item';
                 item.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <div class="rank">${index + 1}</div>
-                        <span>${city.city}</span>
+                        <span>${city}</span>
                     </div>
-                    <span>${city.empty_apartments} stanova</span>
+                    <span>${count.toLocaleString('hr-HR')} stanova</span>
                 `;
                 topCitiesContainer.appendChild(item);
             });
@@ -250,7 +310,7 @@
             const ctx = canvas.getContext('2d');
 
             // Get the modal content width for full-width display
-            const modalContent = document.querySelector('.modal-content');
+            const modalContent = document.querySelector('#photoModal .modal-content');
             const containerWidth = modalContent.clientWidth - 60; // Account for padding and borders
 
             const aspectRatio = currentImage.naturalWidth / currentImage.naturalHeight;
@@ -277,6 +337,16 @@
             canvas.addEventListener('click', handleCanvasClick);
         }
 
+        function showNotDarkBubble(clientX, clientY) {
+            const bubble = document.createElement('div');
+            bubble.className = 'not-dark-bubble';
+            bubble.textContent = 'Nije mračan prozor';
+            bubble.style.left = clientX + 'px';
+            bubble.style.top = clientY + 'px';
+            document.body.appendChild(bubble);
+            bubble.addEventListener('animationend', () => bubble.remove());
+        }
+
         function handleCanvasClick(event) {
             const canvas = document.getElementById('imageCanvas');
             const rect = canvas.getBoundingClientRect();
@@ -291,6 +361,10 @@
 
             // Check if this area looks like a window (dark surrounded by light or vice versa)
             const isWindow = detectWindow(x, y, canvas);
+
+            if (!isWindow) {
+                showNotDarkBubble(event.clientX, event.clientY);
+            }
 
             if (isWindow) {
                 const existingMarkerId = findNearbyMarkerId(x, y);
@@ -520,6 +594,41 @@
             document.getElementById('submitBtn').disabled = !event.target.value;
         }
 
+        // --- Drone modal ---
+
+        function openDroneModal() {
+            resetDroneModal();
+            document.getElementById('droneModal').style.display = 'block';
+        }
+
+        function closeDroneModal() {
+            document.getElementById('droneModal').style.display = 'none';
+            resetDroneModal();
+        }
+
+        function resetDroneModal() {
+            document.getElementById('droneModalBody').style.display = 'block';
+            document.getElementById('droneThankYou').style.display = 'none';
+            document.getElementById('droneCitySelect').value = '';
+            const addressEl = document.getElementById('droneAddress');
+            addressEl.value = '';
+            addressEl.disabled = true;
+            document.getElementById('droneSendBtn').disabled = true;
+        }
+
+        function updateDroneSendBtn() {
+            const city = document.getElementById('droneCitySelect').value;
+            const addressEl = document.getElementById('droneAddress');
+            addressEl.disabled = !city;
+            const address = addressEl.value.trim();
+            document.getElementById('droneSendBtn').disabled = !(city && address);
+        }
+
+        function submitDroneRequest() {
+            document.getElementById('droneModalBody').style.display = 'none';
+            document.getElementById('droneThankYou').style.display = 'flex';
+        }
+
         function initializePage() {
             document.getElementById('openUploadBtn').addEventListener('click', openModal);
             document.getElementById('closeModalBtn').addEventListener('click', closeModal);
@@ -527,14 +636,26 @@
             document.getElementById('fileInput').addEventListener('change', handleFileSelect);
             document.getElementById('citySelect').addEventListener('change', handleCityChange);
             document.getElementById('siteDialogButton').addEventListener('click', closeSiteDialog);
+
+            document.getElementById('openDroneBtn').addEventListener('click', openDroneModal);
+            document.getElementById('closeDroneModalBtn').addEventListener('click', closeDroneModal);
+            document.getElementById('droneCitySelect').addEventListener('change', updateDroneSendBtn);
+            document.getElementById('droneAddress').addEventListener('input', updateDroneSendBtn);
+            document.getElementById('droneSendBtn').addEventListener('click', submitDroneRequest);
+            document.getElementById('closeDroneThankYouBtn').addEventListener('click', closeDroneModal);
         }
 
-        // Close modal when clicking outside
+        // Close modals when clicking outside
         window.onclick = function (event) {
             const modal = document.getElementById('photoModal');
+            const droneModal = document.getElementById('droneModal');
             const dialog = document.getElementById('siteDialog');
             if (!isUploading && event.target === modal) {
                 closeModal();
+            }
+
+            if (event.target === droneModal) {
+                closeDroneModal();
             }
 
             if (event.target === dialog) {
@@ -592,7 +713,7 @@
         function initHeroStats() {
             const total = computeTotalApartments();
             const month = new Date().getMonth() + 1;
-            document.getElementById('hero-cities').textContent = month;
+            document.getElementById('hero-cities').textContent = 11;
             animateHeroCounter(total);
             // keep main stats counter in sync
             document.getElementById('total-apartments').textContent = total.toLocaleString('hr-HR');
