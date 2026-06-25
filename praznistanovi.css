@@ -251,6 +251,11 @@ a:hover {
     font-size: 0.9em;
 }
 
+/* Lock background scroll while any modal is open */
+body.modal-open {
+    overflow: hidden;
+}
+
 .modal {
     display: none;
     position: fixed;
@@ -638,6 +643,28 @@ a:hover {
 .drone-btn:focus-visible {
     outline: 3px solid #d4af37;
     outline-offset: 3px;
+}
+
+/* Surplus-rooms button — same shape as drone button, distinct colour */
+.rooms-btn {
+    background: linear-gradient(145deg, #6b2d5c, #4f2145);
+}
+
+.rooms-btn:hover {
+    background: linear-gradient(145deg, #4f2145, #6b2d5c);
+}
+
+/* Narrow numeric inputs (Kat / Broj stana) inside the rooms form */
+.rooms-number-input {
+    flex: 0 0 auto;
+    width: 110px;
+    min-width: 90px;
+}
+
+@media (max-width: 400px) {
+    .rooms-number-input {
+        width: 100%;
+    }
 }
 
 /* Drone modal sizing — shrinks to content, no fixed height */

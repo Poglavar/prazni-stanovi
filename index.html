@@ -63,6 +63,10 @@
                 <span class="drone-btn-badge">NOVO!</span>
                 Navedi dron-razotkrivač
             </button>
+            <button type="button" class="drone-btn rooms-btn" id="openRoomsBtn">
+                <span class="drone-btn-badge">NOVO!</span>
+                Prijavi gdje ima višak soba
+            </button>
         </div>
 
         <div class="stats-container">
@@ -124,6 +128,51 @@
                 </div>
                 <p class="drone-thankyou-text">Hvala! Vaš zahtjev je primljen. Dron će posjetiti navedenu lokaciju najčešće unutar dan ili dva.</p>
                 <button type="button" id="closeDroneThankYouBtn" class="submit-btn drone-close-btn">Zatvori</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for surplus rooms request -->
+    <div id="roomsModal" class="modal">
+        <div class="modal-content drone-modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Prijavi višak soba</h2>
+                <button type="button" class="close" id="closeRoomsModalBtn" aria-label="Zatvori prozor">&times;</button>
+            </div>
+
+            <div id="roomsModalBody">
+                <div class="drone-modal-image-wrap">
+                    <img src="sobe.svg" alt="Tlocrt stana s povećalom" class="drone-modal-img">
+                </div>
+                <p class="drone-modal-text">Uz prazne stanove, prazne sobe su također neiskorišteni resurs, možda kumulativno još i veći. Velik broj naših sugrađana koristi neracionalno puno stambenog prostora, ponekad su to dvije sobe po osobi (niti jedan čovjek ne može spavati u dvije sobe odjednom!), a nerijetko jedna osoba ima i po tri ili više soba na raspolaganju, dok mnogi nesretnici, posebno u siromašnim zemljama, nemaju niti jednu.</p>
+                <p class="drone-modal-text">U medijima je krenula pripremna kampanja za redistribuciju viškova soba potrebitijima. Ovaj formular vam omogućava da prijavite stan za koji smatrate da u njemu ima višak soba. Nakon toga stručnjaci će prema podacima brojila za struju i vodu izračunati koliko osoba stanuje unutra, a nakon toga će se poduzeti sljedeći koraci.</p>
+                <div class="drone-controls">
+                    <select id="roomsCitySelect" class="city-select drone-city-select">
+                        <option value="">-- Odaberite grad --</option>
+                        <option value="Zagreb">Zagreb</option>
+                        <option value="Split">Split</option>
+                        <option value="Rijeka">Rijeka</option>
+                        <option value="Osijek">Osijek</option>
+                        <option value="Zadar">Zadar</option>
+                        <option value="Slavonski Brod">Slavonski Brod</option>
+                        <option value="Karlovac">Karlovac</option>
+                        <option value="Sisak">Sisak</option>
+                        <option value="Dubrovnik">Dubrovnik</option>
+                        <option value="Pula">Pula</option>
+                    </select>
+                    <input type="text" id="roomsAddress" class="drone-address-input" placeholder="Unesite adresu (ulica i broj)..." disabled>
+                    <input type="number" id="roomsFloor" class="drone-address-input rooms-number-input" placeholder="Kat" min="0" inputmode="numeric" disabled>
+                    <input type="number" id="roomsApartment" class="drone-address-input rooms-number-input" placeholder="Broj stana" min="0" inputmode="numeric" disabled>
+                    <button type="button" id="roomsSendBtn" class="submit-btn" disabled>Pošalji</button>
+                </div>
+            </div>
+
+            <div id="roomsThankYou" class="drone-thankyou" style="display: none;">
+                <div class="drone-modal-image-wrap">
+                    <img src="sobe.svg" alt="Tlocrt stana s povećalom" class="drone-modal-img">
+                </div>
+                <p class="drone-thankyou-text">Hvala! Vaša prijava je primljena. Stručnjaci će analizirati potrošnju struje i vode na navedenoj adresi i utvrditi ima li u stanu viška soba.</p>
+                <button type="button" id="closeRoomsThankYouBtn" class="submit-btn drone-close-btn">Zatvori</button>
             </div>
         </div>
     </div>
@@ -254,6 +303,14 @@
             });
         }
 
+        function lockBodyScroll() {
+            document.body.classList.add('modal-open');
+        }
+
+        function unlockBodyScroll() {
+            document.body.classList.remove('modal-open');
+        }
+
         function openModal() {
             if (isUploading) return;
             document.getElementById('fileInput').click();
@@ -262,6 +319,7 @@
         function closeModal(forceClose = false) {
             if (isUploading && !forceClose) return;
             document.getElementById('photoModal').style.display = 'none';
+            unlockBodyScroll();
             resetModal();
         }
 
@@ -289,6 +347,7 @@
 
                 // Open the modal first
                 document.getElementById('photoModal').style.display = 'block';
+                lockBodyScroll();
 
                 const reader = new FileReader();
                 reader.onload = function (e) {
@@ -599,10 +658,12 @@
         function openDroneModal() {
             resetDroneModal();
             document.getElementById('droneModal').style.display = 'block';
+            lockBodyScroll();
         }
 
         function closeDroneModal() {
             document.getElementById('droneModal').style.display = 'none';
+            unlockBodyScroll();
             resetDroneModal();
         }
 
@@ -629,6 +690,53 @@
             document.getElementById('droneThankYou').style.display = 'flex';
         }
 
+        // --- Surplus rooms modal ---
+
+        function openRoomsModal() {
+            resetRoomsModal();
+            document.getElementById('roomsModal').style.display = 'block';
+            lockBodyScroll();
+        }
+
+        function closeRoomsModal() {
+            document.getElementById('roomsModal').style.display = 'none';
+            unlockBodyScroll();
+            resetRoomsModal();
+        }
+
+        function resetRoomsModal() {
+            document.getElementById('roomsModalBody').style.display = 'block';
+            document.getElementById('roomsThankYou').style.display = 'none';
+            document.getElementById('roomsCitySelect').value = '';
+            ['roomsAddress', 'roomsFloor', 'roomsApartment'].forEach((id) => {
+                const el = document.getElementById(id);
+                el.value = '';
+                el.disabled = true;
+            });
+            document.getElementById('roomsSendBtn').disabled = true;
+        }
+
+        function updateRoomsSendBtn() {
+            const city = document.getElementById('roomsCitySelect').value;
+            const addressEl = document.getElementById('roomsAddress');
+            const floorEl = document.getElementById('roomsFloor');
+            const apartmentEl = document.getElementById('roomsApartment');
+
+            addressEl.disabled = !city;
+            floorEl.disabled = !city;
+            apartmentEl.disabled = !city;
+
+            const address = addressEl.value.trim();
+            const floor = floorEl.value.trim();
+            const apartment = apartmentEl.value.trim();
+            document.getElementById('roomsSendBtn').disabled = !(city && address && floor && apartment);
+        }
+
+        function submitRoomsRequest() {
+            document.getElementById('roomsModalBody').style.display = 'none';
+            document.getElementById('roomsThankYou').style.display = 'flex';
+        }
+
         function initializePage() {
             document.getElementById('openUploadBtn').addEventListener('click', openModal);
             document.getElementById('closeModalBtn').addEventListener('click', closeModal);
@@ -643,12 +751,22 @@
             document.getElementById('droneAddress').addEventListener('input', updateDroneSendBtn);
             document.getElementById('droneSendBtn').addEventListener('click', submitDroneRequest);
             document.getElementById('closeDroneThankYouBtn').addEventListener('click', closeDroneModal);
+
+            document.getElementById('openRoomsBtn').addEventListener('click', openRoomsModal);
+            document.getElementById('closeRoomsModalBtn').addEventListener('click', closeRoomsModal);
+            document.getElementById('roomsCitySelect').addEventListener('change', updateRoomsSendBtn);
+            document.getElementById('roomsAddress').addEventListener('input', updateRoomsSendBtn);
+            document.getElementById('roomsFloor').addEventListener('input', updateRoomsSendBtn);
+            document.getElementById('roomsApartment').addEventListener('input', updateRoomsSendBtn);
+            document.getElementById('roomsSendBtn').addEventListener('click', submitRoomsRequest);
+            document.getElementById('closeRoomsThankYouBtn').addEventListener('click', closeRoomsModal);
         }
 
         // Close modals when clicking outside
         window.onclick = function (event) {
             const modal = document.getElementById('photoModal');
             const droneModal = document.getElementById('droneModal');
+            const roomsModal = document.getElementById('roomsModal');
             const dialog = document.getElementById('siteDialog');
             if (!isUploading && event.target === modal) {
                 closeModal();
@@ -656,6 +774,10 @@
 
             if (event.target === droneModal) {
                 closeDroneModal();
+            }
+
+            if (event.target === roomsModal) {
+                closeRoomsModal();
             }
 
             if (event.target === dialog) {
