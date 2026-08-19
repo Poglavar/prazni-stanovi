@@ -1,64 +1,91 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Deploys by having the SERVER pull origin/main and mirror its tree into the nginx
+# docroot. Nothing is rsynced from the laptop, so what is live is exactly what is
+# on origin/main.
+#
+# Why git-pull rather than a laptop rsync: rsync copies whatever is in the working
+# directory, including gitignored files. That is how six .env files - one holding a
+# live Cloudflare API token - ended up served with 200 from /var/www/zagreb.lol on
+# 2026-08-19. Git physically cannot ship a gitignored file. The repo checkout also
+# stays OUT of the docroot, so the repo's own .git is never web-reachable either.
+#
+# Refuses to run unless the local checkout IS origin/main (clean, on main, pushed),
+# so production always matches GitHub. DEPLOY_ALLOW_DIRTY=1 bypasses in an emergency.
+set -euo pipefail
 
-# Deploy script for the prazni stanovi site
-# Deploys to zagreb.lol/praznistanovi/
+REMOTE_HOST="${REMOTE_HOST:-do}"
+REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-/root/code/prazni-stanovi}"
+REMOTE_DOCROOT="${REMOTE_DOCROOT:-/var/www/zagreb.lol/praznistanovi}"
+CLONE_URL="${CLONE_URL:-git@github-personal:Poglavar/prazni-stanovi.git}"
+BRANCH="main"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Load Cloudflare credentials (CF_ZONE_ID, CF_API_KEY)
+# Cloudflare credentials (CF_ZONE_ID, CF_API_KEY) for the cache purge.
 if [ -f "$SCRIPT_DIR/.env" ]; then
-    set -a; source "$SCRIPT_DIR/.env"; set +a
+	set -a; source "$SCRIPT_DIR/.env"; set +a
 fi
 
-# Configuration
-SSH_HOST="root@67.205.138.129"
-REMOTE_PATH="/var/www/zagreb.lol/praznistanovi"
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-echo -e "${YELLOW}🚀 Starting deployment to zagreb.lol/praznistanovi/${NC}"
-
-# Check if SSH key exists
-if [ ! -f ~/.ssh/id_ed25519 ]; then
-    echo -e "${RED}❌ SSH key not found at ~/.ssh/id_ed25519${NC}"
-    exit 1
+if [[ "${DEPLOY_ALLOW_DIRTY:-}" != "1" ]]; then
+	if ! git -C "$SCRIPT_DIR" diff --quiet || ! git -C "$SCRIPT_DIR" diff --cached --quiet; then
+		echo "Uncommitted changes — commit and push to ${BRANCH} first (or DEPLOY_ALLOW_DIRTY=1)." >&2
+		exit 1
+	fi
+	CUR_BRANCH="$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD)"
+	if [[ "$CUR_BRANCH" != "$BRANCH" ]]; then
+		echo "On branch '${CUR_BRANCH}' — deploys run from ${BRANCH} only (or DEPLOY_ALLOW_DIRTY=1)." >&2
+		exit 1
+	fi
+	git -C "$SCRIPT_DIR" fetch origin "$BRANCH" --quiet
+	if [[ "$(git -C "$SCRIPT_DIR" rev-parse HEAD)" != "$(git -C "$SCRIPT_DIR" rev-parse "origin/$BRANCH")" ]]; then
+		echo "Local ${BRANCH} differs from origin/${BRANCH} — push or pull first." >&2
+		exit 1
+	fi
 fi
 
-echo -e "${YELLOW}📁 Ensuring remote directory exists...${NC}"
-ssh -i ~/.ssh/id_ed25519 $SSH_HOST "mkdir -p $REMOTE_PATH"
+echo "Deploying prazni-stanovi — server pulls ${BRANCH} on ${REMOTE_HOST}"
 
-echo -e "${YELLOW}📤 Uploading files...${NC}"
-scp -i ~/.ssh/id_ed25519 index.html $SSH_HOST:$REMOTE_PATH/
-scp -i ~/.ssh/id_ed25519 praznistanovi.json $SSH_HOST:$REMOTE_PATH/
-scp -i ~/.ssh/id_ed25519 praznistanovi.css $SSH_HOST:$REMOTE_PATH/
-scp -i ~/.ssh/id_ed25519 prazni-stanovi-primjer1.png $SSH_HOST:$REMOTE_PATH/
-scp -i ~/.ssh/id_ed25519 drone.svg $SSH_HOST:$REMOTE_PATH/
-scp -i ~/.ssh/id_ed25519 sobe.svg $SSH_HOST:$REMOTE_PATH/
+DEPLOY_SHA="$(ssh "$REMOTE_HOST" "REMOTE_REPO_DIR='$REMOTE_REPO_DIR' REMOTE_DOCROOT='$REMOTE_DOCROOT' CLONE_URL='$CLONE_URL' BRANCH='$BRANCH' bash -s" <<'EOF'
+set -euo pipefail
+if [ ! -d "$REMOTE_REPO_DIR/.git" ]; then
+	mkdir -p "$(dirname "$REMOTE_REPO_DIR")"
+	git clone --quiet "$CLONE_URL" "$REMOTE_REPO_DIR"
+fi
+cd "$REMOTE_REPO_DIR"
+git fetch origin "$BRANCH" --quiet
+git reset --hard "origin/$BRANCH" --quiet
+git clean -fd --quiet
+SHA="$(git rev-parse --short HEAD)"
+mkdir -p "$REMOTE_DOCROOT"
+# --delete removes files a previous deploy left behind. The excludes keep repo
+# plumbing and dev-only payload out of a public docroot; .env and .git are listed
+# even though git cannot ship the first and the checkout lives outside the docroot,
+# because a docroot must never contain either whatever the source turns out to be.
+rsync -a --delete \
+	--exclude '.env' \
+	--exclude '.git' \
+	--exclude '.gitignore' \
+	--exclude '.claude' \
+	--exclude '.DS_Store' \
+	--exclude 'node_modules' \
+	--exclude 'deploy-to-server.sh' \
+	--exclude '*.md' \
+	"$REMOTE_REPO_DIR/" "$REMOTE_DOCROOT/"
+chmod -R u=rwX,go=rX "$REMOTE_DOCROOT"
+echo "$SHA"
+EOF
+)"
 
-# Set proper permissions
-echo -e "${YELLOW}🔐 Setting permissions...${NC}"
-ssh -i ~/.ssh/id_ed25519 $SSH_HOST "chmod -R 755 $REMOTE_PATH"
-ssh -i ~/.ssh/id_ed25519 $SSH_HOST "chown -R www-data:www-data $REMOTE_PATH"
+echo "Deployed $DEPLOY_SHA to $REMOTE_DOCROOT"
 
-# Test if nginx is running and reload if needed
-echo -e "${YELLOW}🔄 Checking nginx configuration...${NC}"
-ssh -i ~/.ssh/id_ed25519 $SSH_HOST "nginx -t && systemctl reload nginx"
-
-echo "Purging Cloudflare cache..."
-result=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
-    -H "Authorization: Bearer ${CF_API_KEY}" \
-    -H "Content-Type: application/json" \
-    --data '{"purge_everything":true}')
-if echo "$result" | python3 -c "import sys,json; r=json.load(sys.stdin); sys.exit(0 if r['success'] else 1)" 2>/dev/null; then
-    echo "Cache purged OK."
+if [ -n "${CF_ZONE_ID:-}" ] && [ -n "${CF_API_KEY:-}" ]; then
+	echo "Purging Cloudflare cache for https://zagreb.lol/praznistanovi/"
+	curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
+		-H "Authorization: Bearer ${CF_API_KEY}" \
+		-H "Content-Type: application/json" \
+		--data '{"prefixes":["https://zagreb.lol/praznistanovi/"]}' >/dev/null && echo "Cloudflare cache purged."
 else
-    echo "Cache purge failed: $result"
-    exit 1
+	echo "CF_ZONE_ID/CF_API_KEY not set — skipping cache purge."
 fi
 
-echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
-echo -e "${GREEN}🌐 Site available at: https://zagreb.lol/praznistanovi/${NC}"
+echo "Deploy complete."
