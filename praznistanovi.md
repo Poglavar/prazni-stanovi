@@ -30,7 +30,9 @@ We build and auto-processing function. The processing function will use AI in th
 
 Fix the croatian diacritics in the text.
 Populate the deploy-to-server.sh to be a deploy script which wll deploy the site to the sshkrpa
-sshkrpa='ssh root@207.154.200.141 -i ~/.ssh/id_ed25519'
+sshkrpa='ssh root@207.154.200.141 -i ~/.ssh/id_ed25519'   <!-- STALE: krpa was destroyed 2026-07-01.
+     Do NOT ssh to 207.154.200.141 — DigitalOcean re-issues a destroyed droplet's IP, so it belongs to
+     someone else now. krpa.me moved to `do` (67.205.138.129) and still serves; deploy there. -->
 /var/www/krpa.me
 
 The site should be at https://krpa.me/praznistanovi/
